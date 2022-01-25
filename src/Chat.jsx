@@ -1,16 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import ScrollToBottom from 'react-scroll-to-bottom';
 import axios from "axios";
-import connectionUrl from "./connectionUrl";
+import {
+  Wave
+} from 'better-react-spinkit';
+import React, { useState } from 'react';
+import ScrollToBottom from 'react-scroll-to-bottom';
+import { v4 as uuidv4 } from 'uuid';
+import AnimatedText from "./AnimatedText";
+import backButton from "./ArrowLeft.svg";
 
-const senderName = "Guest";
+const senderName = "Guest_" + uuidv4();
 
-const Chat = ({ agentImage, agentName }) => {
+const Chat = ({ agentImage, agentName, handleClick, startingMessage }) => {  
   const [currentMessage, setCurrentMessage] = useState('');
   const [messageList, setMessageList] = useState([]);
+  const [firstLoad, setFirstLoad] = useState(false);
+  const [firstMessage, setFirstMessage] = useState(false);
+  const [typing, setTyping] = useState(false);
 
   const sendMessage = async () => {
-      console.log("agentImage", agentImage)
+    if(!agentName){
+      console.log("Not sending message, not yet connected")
+    }
+    setTyping(true);
+    
     if (currentMessage) {
         const messageData = {
             message: currentMessage,
@@ -18,13 +30,14 @@ const Chat = ({ agentImage, agentName }) => {
           };
 
     const body = { sender:senderName, agent:agentName, command: currentMessage };
-    axios.post(`${connectionUrl}/execute`, body).then(res => {
+    axios.post(`${process.env.VITE_SERVER_CONNECTION_URL}/execute`, body).then(res => {
       console.log("response is", res);
       const messageData = {
-        message: res.data.result,
+        message: res && res.data && res.data.result || agentName,
         isAgent: true
       };
       setMessageList((list) => [...list, messageData]);
+      setTyping(false);
     });
 
       setMessageList((list) => [...list, messageData]);
@@ -32,9 +45,25 @@ const Chat = ({ agentImage, agentName }) => {
     }
   };
 
+  if (firstLoad === false && agentName) {
+    const messageData = {
+      message: startingMessage,
+      isAgent: true
+    };
+    setMessageList((list) => [...list, messageData]);
+    setFirstLoad(true);
+    setFirstMessage(true);
+  }
+
   return (
     <div className="chat-window">
+                <div className="back">
+            <img src={backButton} onClick={() => handleClick()} />
+          </div>
+    {agentName && <div className="TalkingTo">Talking to <b>{agentName}</b></div>}
+
       <div className="chat-body">
+      { firstMessage ? (
         <ScrollToBottom className="message-container">
           {messageList.map((messageContent, idx) => {
             return (
@@ -44,19 +73,41 @@ const Chat = ({ agentImage, agentName }) => {
                 key={idx}
               >
                 <div>
-                    <div className="message-image">
-                        {/* {agentImage} */}
-                    </div>
-                  <div className="message-content">
-                    <p>{messageContent.message}</p>
-                  </div>
-                </div>
+                    {messageContent.isAgent ? ( 
+                      <div className="message-content-agent">
+                        <img src={agentImage} className="image-chat-agent" />
+                        &nbsp;&nbsp;
+                        {messageContent.message}
+                      </div>
+                    ) : (
+                      <div className="message-content-user">     
+                        {messageContent.message}
+                        &nbsp;&nbsp;               
+                        <img src='User_Icon.svg' className="image-chat-user" />  
+                      </div>
+                    )}
+                                    </div>
               </div>
             );
           })}
         </ScrollToBottom>
+        ) : (
+          <>
+          <Wave className="loadingSpinner" size={100} style={{marginLeft:"auto", marginRight:"auto"}} />
+        </>
+        )}
       </div>
+      { firstMessage ? (
       <div className="chat-footer">
+        <br/>
+        <center>
+        { typing ? (
+          <AnimatedText input='Typing...' effect='stretch' effectChange={4} />
+        ) : ( 
+          <div></div>
+        )}
+        </center>
+        <br/>
         <input
           type="text"
           name="message"
@@ -68,6 +119,9 @@ const Chat = ({ agentImage, agentName }) => {
           }}
         /><button onClick={sendMessage} />
       </div>
+    ) : (
+      <h1></h1>
+    )}
     </div>
   );
 };
